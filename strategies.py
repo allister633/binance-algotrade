@@ -1,6 +1,7 @@
 import pandas as pd 
 import numpy as np
 import indicators
+import logging
 
 class Strategy:
 
@@ -97,9 +98,9 @@ class RSIMACDStrategy(Strategy):
         hithreshpassed = False
         hihithreshpassed = False
         hasbought = False
-        close['rsi'] = rsi.data()
-        close['macd'], close['macd_signal'] = macd.data()
-        for index, row in close.iterrows():
+        self.signals['rsi'] = rsi.data()
+        self.signals['macd'], self.signals['macd_signal'] = macd.data()
+        for index, row in self.signals.iterrows():
             # achat en fonction du RSI
             if row['rsi'] < 33:
                 lowthreshpassed = True

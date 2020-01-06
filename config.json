@@ -1,0 +1,10 @@
+{
+    "db" : {
+        "host" : ""
+    },
+    "api" : {
+        "apikey" : "",
+        "secretkey" : ""
+    },
+    "pairs" : {}
+}
