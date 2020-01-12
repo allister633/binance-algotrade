@@ -1,6 +1,7 @@
 {
     "db" : {
-        "host" : ""
+        "host" : "",
+        "name" : ""
     },
     "api" : {
         "apikey" : "",

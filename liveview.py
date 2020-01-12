@@ -138,7 +138,7 @@ def main():
 
     client = MongoClient(config['db']['host'])
 
-    db = client.binance
+    db = client[config['db']['name']]
     lt = LiveTicker(db, args.symbol)
 
     #t1 = threading.Thread(target=lt.watchcandles)

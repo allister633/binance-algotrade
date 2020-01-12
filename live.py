@@ -96,9 +96,9 @@ class Book():
         # on vend seulement si le dernier ordre d'achat a été FILLED et que l'on possède de la devise
         if self.lastbuyorderid != None and self.holding == True:
 
-            # s'il y a déjà eu un ordre de vente et qu'il n'a été FILLED, on l'annule
+            # s'il y a déjà eu un ordre de vente et qu'il n'a été FILLED ou PARTIALLY_FILLED, on l'annule
             if self.lastsellorderid != None:
-                if self.orders[self.lastsellorderid]['status'] != OrderStatus.FILLED.name:
+                if self.orders[self.lastsellorderid]['status'] != OrderStatus.FILLED.name and self.orders[self.lastsellorderid]['status'] != OrderStatus.PARTIALLY_FILLED.name:
                     logging.info("Cancelling last unfilled SELL order {}".format(self.lastbuyorderid))
                     status, data = self.api.cancelorder(self.symbol, self.lastsellorderid)
                     if status == 200:
@@ -127,7 +127,7 @@ class Book():
                     self.orders[order['orderId']] = order
                     self.lastsellorderid = order['orderId']
 
-                    if order['status'] == OrderStatus.FILLED.name:
+                    if order['status'] == OrderStatus.FILLED.name or order['status'] == OrderStatus.PARTIALLY_FILLED.name:
                         self.holding = False
                     
                     self.db.orders.insert_one(order)
@@ -137,6 +137,17 @@ class Book():
                     logging.error("Could not send order : {}".format(order))
 
         return False
+
+    def calcpnl(self):
+        if self.lastsellorderid != None and self.lastbuyorderid != None:
+            lastsellprice = float(self.orders[self.lastsellorderid]['price'])
+            lastbuyprice = float(self.orders[self.lastbuyorderid]['price'])
+
+            pnl = ((lastsellprice - lastbuyprice) / lastbuyprice) * 100.0
+            self.quantity = self.quantity + (self.quantity * pnl / 100.0)
+            self.quantity = round(self.quantity, 5)
+
+            logging.info("{} - PnL {}, new quantity {}".format(self.symbol, pnl, self.quantity))
 
     def update_order(self, data):
         logging.info("{}".format(data))
@@ -167,20 +178,20 @@ class Book():
         if self.lastsellorderid != None and self.lastsellorderid == order['orderId']:
 
             # s'il est FILLED, ça veut dire qu'on ne detient plus de devise, on pourra donc en racheter
-            if self.orders[self.lastsellorderid]['status'] == OrderStatus.FILLED.name:
+            if self.orders[self.lastsellorderid]['status'] == OrderStatus.FILLED.name or self.orders[self.lastsellorderid]['status'] == OrderStatus.PARTIALLY_FILLED.name:
                 self.holding = False
+                self.calcpnl()
 
         # si l'ordre concerne le dernier ordre d'achat
         if self.lastbuyorderid != None and self.lastbuyorderid == order['orderId']:
 
-            # s'il est FILLED, ça veut dire qu'on detient de la devise, on pourra donc pas en racheter
+            # s'il est FILLED, ça veut dire qu'on detient de la devise, on ne pourra donc pas en racheter
             if self.orders[self.lastbuyorderid]['status'] == OrderStatus.FILLED.name:
                 self.holding = True
 
 class LiveTicker():
 
     def __init__(self, api, db, symbol, interval, quantity):
-        logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
         self.symbol = symbol
         self.interval = interval
         self.limit = 0.5
@@ -191,16 +202,17 @@ class LiveTicker():
         self.lasttimetick = None
 
         self.book = Book(api, db, symbol, quantity)
-        self.df = api.getklines(self.symbol.upper(), self.interval, 50)
+        self.df = api.getklines(self.symbol.upper(), self.interval, 100)
 
-        candles = []
-        for index, row in self.df.iterrows():
-            candle = self.df.loc[index].to_dict()
-            candle['time'] = index
-            candle['symbol'] = self.symbol
-            candles.append(candle)
+        # On fait un copie de la DataFrame pour y ajouter les colonnes temps et symbole pour l'insérer en base
+        dfcopy = self.df.copy()
+        dfcopy['time'] = dfcopy.index
+        dfcopy['symbol'] = symbol
 
-        self.db.candles.insert_many(candles)
+        # On supprime les élements en base qu'on a récupérés par l'API
+        fromdate = dfcopy.iloc[0]['time']
+        db.candles.delete_many({ 'symbol' : symbol, 'time' : { '$gte' : fromdate } })
+        db.candles.insert_many(dfcopy.to_dict('records'))
 
         self.rsi = indicators.RSI(self.df['open'], 9)
         self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
@@ -215,11 +227,11 @@ class LiveTicker():
 
     def act(self, time, price):
         if self.strategy.signals['signal'].loc[time] == 1.0 and self.startup == False:
-            logging.info("BUY Signal " + self.symbol + " AT " + str(price))
+            logging.info("{} - BUY signal at {}".format(self.symbol, price))
 
             return self.book.buy(price)
         elif self.strategy.signals['signal'].loc[time] == 0.0:
-            logging.info("SELL Signal " + self.symbol + " AT " + str(price))
+            logging.info("{} - SELL signal at {}".format(self.symbol, price))
 
             self.startup = False
 
@@ -232,11 +244,7 @@ class LiveTicker():
         candle['time'] = time
         candle['symbol'] = self.symbol
 
-        storedcandle = self.db.candles.find_one({'time' : time, 'symbol' : self.symbol})
-        if storedcandle != None:
-            self.db.candles.replace_one({'_id' : storedcandle.get('_id')}, candle)
-        else:
-            self.db.candles.insert_one(candle)
+        self.db.candles.replace_one({'time' : time, 'symbol' : self.symbol}, candle, upsert=True)
 
     def update_price(self, data):
         time = datetime.datetime.utcfromtimestamp(data['k']['t'] / 1000)
@@ -338,6 +346,8 @@ def subscribe(api, router, listenkey):
         subscribe(api, router, listenkey)
 
 def main():
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename='live.log')
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-test", action='store_false', dest='test')
     parser.add_argument("--drop-db", action='store_true', dest='dropdb')
@@ -351,7 +361,7 @@ def main():
     api = BinanceAPI(config, args.test)
 
     client = MongoClient(config['db']['host'])
-    db = client.binance
+    db = client[config['db']['name']]
 
     if args.dropdb == True:
         db.candles.drop()
