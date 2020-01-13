@@ -9,8 +9,6 @@ import http.client, urllib.parse
 import hmac, hashlib
 import json
 
-import pandas as pd
-
 class OrderStatus(Enum):
     NEW = 1
     PARTIALLY_FILLED = 2
@@ -33,7 +31,7 @@ class OrderSide(Enum):
     BUY = 1
     SELL = 2
 
-class BinanceAPI():
+class Binance():
 
     def __init__(self, config, test=True):
         self.config = config
@@ -43,106 +41,58 @@ class BinanceAPI():
             self.secretkey = self.config['api']['secretkey']
         self.test = test
 
-    def exchangeinfo(self):
+    def _request(self, method, url, body=None, headers={}):
         conn = http.client.HTTPSConnection("api.binance.com")
-        conn.request("GET", "/api/v3/exchangeInfo")
+        conn.request(method, url, body, headers=headers)
         r1 = conn.getresponse()
         data1 = r1.read()
         conn.close()
         
-        return json.loads(data1)
+        data = json.loads(data1)
+
+        return r1.status, data
+
+    def exchangeinfo(self):
+        return self._request('GET', '/api/v3/exchangeInfo')
 
     def getklines(self, symbol, interval, limit):
-        conn = http.client.HTTPSConnection("api.binance.com")
-        conn.request("GET", "/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=" + str(limit))
-        r1 = conn.getresponse()
-        data1 = r1.read()
-        conn.close()
-
-        klines = json.loads(data1)
-
-        df = pd.DataFrame(klines, columns=['time', 'open', 'high', 'low', 'close', 'volume', 'a', 'b', 'c', 'd', 'e', 'f'], dtype='float64')
-        df['time'] = pd.to_datetime(df['time'], unit='ms')
-        df = df.set_index('time')
-        df = df.drop(columns=['a', 'b', 'c', 'd', 'e', 'f'])
-
-        return df
+        url = "/api/v3/klines?symbol={}&interval={}&limit={}".format(symbol, interval, limit)
+        return self._request('GET', url)
 
     def getorder(self, symbol, orderid):
-        conn = http.client.HTTPSConnection("api.binance.com")
-        headers = {"X-MBX-APIKEY": self.apikey}
         timestamp = self.timestamp()
         params = urllib.parse.urlencode({"symbol": symbol, "orderId": orderid, "timestamp": timestamp})
         signature = hmac.new(bytes(self.secretkey, "latin-1"), bytes(params, "latin-1"), hashlib.sha256)
         params = urllib.parse.urlencode({"symbol": symbol, "orderId": orderid, "timestamp": timestamp, "signature": signature.hexdigest()})
-        conn.request("GET", "/api/v3/order?" + params, headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return r1.status, data
+        return self._request('GET', "/api/v3/order?{}".format(params), headers={"X-MBX-APIKEY": self.apikey})
 
     def getorders(self, symbol):
-        conn = http.client.HTTPSConnection("api.binance.com")
-        headers = {"X-MBX-APIKEY": self.apikey}
         timestamp = self.timestamp()
         params = urllib.parse.urlencode({"symbol": symbol, "timestamp": timestamp})
         signature = hmac.new(bytes(self.secretkey, "latin-1"), bytes(params, "latin-1"), hashlib.sha256)
         params = urllib.parse.urlencode({"symbol": symbol, "timestamp": timestamp, "signature": signature.hexdigest()})
-        conn.request("GET", "/api/v3/allOrders?" + params, headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return data
+        return self._request('GET', "/api/v3/allOrders?{}".format(params), headers={"X-MBX-APIKEY": self.apikey})
 
     def time(self):
-        conn = http.client.HTTPSConnection("api.binance.com")
-        conn.request("GET", "/api/v3/time")
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return data
+        return self._request('GET', '/api/v3/time')
 
     def account(self):
-        conn = http.client.HTTPSConnection("api.binance.com")
-        headers = {"X-MBX-APIKEY": self.apikey}
         timestamp = self.timestamp()
         params = urllib.parse.urlencode({"timestamp": timestamp})
         signature = hmac.new(bytes(self.secretkey, "latin-1"), bytes(params, "latin-1"), hashlib.sha256)
         params = urllib.parse.urlencode({"timestamp": timestamp, "signature": signature.hexdigest()})
-        conn.request("GET", "/api/v3/account?" + params, headers=headers)
-        r1 = conn.getresponse()
+        return self._request('GET', "/api/v3/account?{}".format(params), headers={"X-MBX-APIKEY": self.apikey})
 
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return data
-
-    def order(self, symbol: str, side: str, type: str, quantity: float, price: float):
+    def order(self, symbol: str, side: OrderSide, type: OrderType, quantity: float, price: float):
         if self.test == True:
             url = "/api/v3/order/test"
         else:
             url = "/api/v3/order"
-        conn = http.client.HTTPSConnection("api.binance.com")
-        headers = {"X-MBX-APIKEY": self.apikey, "Content-Type": "application/x-www-form-urlencoded"}
         timestamp = self.timestamp()
         params = urllib.parse.urlencode({
             "symbol": symbol,
-            "side": side,
-            "type": type,
+            "side": side.name,
+            "type": type.name,
             "timeInForce": "GTC",
             "quantity": quantity,
             "price": '{:.8f}'.format(price),
@@ -151,23 +101,16 @@ class BinanceAPI():
         signature = hmac.new(bytes(self.secretkey, "latin-1"), bytes(params, "latin-1"), hashlib.sha256)
         params = params + "&" + urllib.parse.urlencode({"signature": signature.hexdigest()})
 
-        conn.request("POST", url, params, headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
+        status, data = self._request('POST', url, params, headers={"X-MBX-APIKEY": self.apikey, "Content-Type": "application/x-www-form-urlencoded"})
 
         # lorsqu'on est en mode test, l'API ne répond pas d'objet à l'ordre, on insère une fausse réponse
-        if self.test == True:
+        if self.test == True and status == 200:
             data = {'symbol': symbol, 'side': side, 'status': 'FILLED', 'price': str(price), 'orderId': random.randint(1000, 9999), 'transactTime': self.timestamp()}
 
-        return r1.status, data
+        return status, data
 
     def cancelorder(self, symbol: str, orderid):
         url = "/api/v3/order"
-        conn = http.client.HTTPSConnection("api.binance.com")
         headers = {"X-MBX-APIKEY": self.apikey, "Content-Type": "application/x-www-form-urlencoded"}
         timestamp = self.timestamp()
         params = urllib.parse.urlencode({
@@ -178,41 +121,15 @@ class BinanceAPI():
         signature = hmac.new(bytes(self.secretkey, "latin-1"), bytes(params, "latin-1"), hashlib.sha256)
         params = params + "&" + urllib.parse.urlencode({"signature": signature.hexdigest()})
 
-        conn.request("DELETE", url, params, headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return r1.status, data
+        return self._request('DELETE', url, params, headers=headers)
 
     def createlistenkey(self):
-        conn = http.client.HTTPSConnection("api.binance.com")
         headers = {"X-MBX-APIKEY": self.apikey, "Content-Type": "application/x-www-form-urlencoded"}
-        conn.request("POST", "/api/v3/userDataStream", headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return r1.status, data
+        return self._request('POST', "/api/v3/userDataStream", headers=headers)
 
     def pinglistenkey(self, listenkey):
-        conn = http.client.HTTPSConnection("api.binance.com")
         headers = {"X-MBX-APIKEY": self.apikey, "Content-Type": "application/x-www-form-urlencoded"}
-        conn.request("PUT", "/api/v3/userDataStream?listenKey={}".format(listenkey), headers=headers)
-        r1 = conn.getresponse()
-
-        data1 = r1.read()
-        data = json.loads(data1)
-
-        conn.close()
-
-        return r1.status, data
+        return self._request('PUT', "/api/v3/userDataStream?listenKey={}".format(listenkey), headers=headers)
 
     async def ws(self, handler, symbol = None, interval = None, listenkey = None):
         if symbol == None and interval == None:

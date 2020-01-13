@@ -61,13 +61,6 @@ class AvgCrossStrategy(Strategy):
         Strategy.__init__(self, close.index, fee)
         self.signals['signal'] = np.where(fast_avg > slow_avg, 1.0, 0.0)
         self.signals['positions'] = self.signals['signal'].diff()
-        
-class SMACrossoverStrategy(Strategy):
-
-    def __init__(self, index, short_sma: indicators.SMA, long_sma: indicators.SMA, fee=0.0):
-        Strategy.__init__(self, index, fee=0.0)
-        self.signals['signal'] = np.where(short_sma.series() > long_sma.series(), 1.0, 0.0)
-        self.signals['positions'] = self.signals['signal'].diff()
 
 class CustomStrategy(Strategy):
 

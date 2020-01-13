@@ -11,9 +11,10 @@ import pandas as pd
 
 from pymongo import MongoClient
 
-from api.binance import BinanceAPI, OrderStatus, OrderType, OrderSide
+from api.binance import Binance, OrderStatus, OrderType, OrderSide
 import strategies
 import indicators
+import utils
 
 class Book():
 
@@ -64,7 +65,7 @@ class Book():
                         logging.error("Could not cancel order {} : {}".format(self.lastbuyorderid, data))
                         return
 
-            status, order = self.api.order(self.symbol, OrderSide.BUY.name, "LIMIT", self.quantity, price)
+            status, order = self.api.order(self.symbol, OrderSide.BUY, OrderType.LIMIT, self.quantity, price)
             if status == 200:
                 logging.info("Order sent {}".format(order))
 
@@ -202,7 +203,8 @@ class LiveTicker():
         self.lasttimetick = None
 
         self.book = Book(api, db, symbol, quantity)
-        self.df = api.getklines(self.symbol.upper(), self.interval, 100)
+        status, data = api.getklines(self.symbol.upper(), self.interval, 100)
+        self.df = utils.klinestodataframe(data)
 
         # On fait un copie de la DataFrame pour y ajouter les colonnes temps et symbole pour l'insérer en base
         dfcopy = self.df.copy()
@@ -358,7 +360,7 @@ def main():
     config = json.load(f)
     f.close()
 
-    api = BinanceAPI(config, args.test)
+    api = Binance(config, args.test)
 
     client = MongoClient(config['db']['host'])
     db = client[config['db']['name']]

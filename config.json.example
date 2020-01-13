@@ -1,11 +1,13 @@
 {
     "db" : {
         "host" : "",
-        "name" : ""
+        "name" : "binance"
     },
     "api" : {
         "apikey" : "",
         "secretkey" : ""
     },
-    "pairs" : {}
+    "pairs" : {
+        "BTCUSDT" : { "interval" : "30", "quantity" : 1 }
+    }
 }

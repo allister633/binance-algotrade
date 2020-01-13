@@ -1,7 +1,8 @@
 import argparse
 import os.path
 import pandas as pd
-from api.binance import BinanceAPI
+from api.binance import Binance
+import utils
 
 def main():
     parser = argparse.ArgumentParser()
@@ -11,8 +12,9 @@ def main():
     
     path = 'data/' + args.symbol + '_' + args.interval + '.csv'
 
-    api = BinanceAPI({})
-    df = api.getklines(args.symbol, args.interval, 200)
+    api = Binance({})
+    status, data = api.getklines(args.symbol, args.interval, 1000)
+    df = utils.klinestodataframe(data)
 
     if os.path.isfile(path):
         df2 = pd.read_csv(path, index_col='time', parse_dates=True)
