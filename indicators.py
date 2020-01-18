@@ -104,8 +104,8 @@ class BollingerBands(Indicator):
         Indicator.__init__(self, data.index)
         self.df['close'] = data
         self.df['ma'] =  self.df['close'].rolling(window=period).mean()
-        self.df['upper'] = self.df['ma'] + (self.df['close'].rolling(window=period).std() * 2)
-        self.df['lower'] = self.df['ma'] - (self.df['close'].rolling(window=period).std() * 2)
+        self.df['upper'] = self.df['ma'] + (self.df['close'].rolling(window=period).std(ddof=0) * 2.0)
+        self.df['lower'] = self.df['ma'] - (self.df['close'].rolling(window=period).std(ddof=0) * 2.0)
 
     def data(self):
         return self.df['ma'], self.df['upper'], self.df['lower']

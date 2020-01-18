@@ -16,8 +16,7 @@ def main():
     parser.add_argument("file")
     args = parser.parse_args()
     
-    df = pd.read_csv(args.file, index_col='time')
-    df.index = df.index.astype('datetime64')
+    df = pd.read_csv(args.file, index_col='time', parse_dates=True)
 
     #close = df.loc['20191225':,['close']].astype('float64')
     close = df
