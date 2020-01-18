@@ -17,6 +17,9 @@ import indicators
 import utils
 
 class Book():
+    """Emits and persists buy and sell orders.
+    Calculates profit and loss, and adjusts initial quantity.
+    """
 
     def __init__(self, api, db, symbol, quantity):
         self.api = api
@@ -41,12 +44,9 @@ class Book():
                 self.holding = True
 
     def buy(self, price) -> bool:
-        """Emet un ordre d'achat. Renvoie True si le brocker a accepté l'ordre.
-        La vente est envoyée si on ne possède pas déjà de la devise et si l'ordre
-        de vente précédent (s'il y en a eu un) a été rempli.
-
-        Paramètres:
-        price -- prix d'achat
+        """Emits a buy order and perists it in the database.
+        Returns True if the brocker accepted the order.
+        The order is sent only if we are not holding the currency.
         """
 
         # on ne rachète pas de devise si on en possède déjà
@@ -86,12 +86,9 @@ class Book():
         return False
 
     def sell(self, price) -> bool:
-        """Emet un ordre de vente. Renvoie True si le brocker a accepté l'ordre.
-        La vente est envoyée si on possède de la devise et si l'ordre d'achat
-        précédent a été rempli.
-
-        Paramètres:
-        price -- prix de vente
+        """Emits a sell order and perists it in the database.
+        Returns True if the brocker accepted the order.
+        The order is sent only if we are holding the currency.
         """
 
         # on vend seulement si le dernier ordre d'achat a été FILLED et que l'on possède de la devise
@@ -119,7 +116,7 @@ class Book():
                 else:
                     quantity = self.quantity
 
-                status, order = self.api.order(self.symbol, OrderSide.SELL.name, "LIMIT", quantity, price)
+                status, order = self.api.order(self.symbol, OrderSide.SELL, OrderType.LIMIT, quantity, price)
                 if status == 200:
                     logging.info("Order sent {}".format(order))
 
