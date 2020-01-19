@@ -3,6 +3,21 @@ import numpy as np
 import indicators
 import logging
 
+class BacktestResult:
+
+    def __init__(self, start, end, trades, netret, sharpe, maxdrawdown, maxdrawdownduration):
+        self.start = start
+        self.end = end
+        self.trades = trades
+        self.netret = netret
+        self.sharpe = sharpe
+        self.maxdrawdown = maxdrawdown
+        self.maxdrawdownduration = maxdrawdownduration
+
+    def __str__(self):
+        return 'Start :\t\t\t{}\nEnd :\t\t\t{}\nTrades :\t\t{}\nReturn % :\t\t{}\nSharpe Ratio :\t\t{}\nMax Drawdown % :\t{}\nMax Drawdown Duration :\t{}'\
+            .format(self.start, self.end, self.trades, self.netret, self.sharpe, self.maxdrawdown, self.maxdrawdownduration) 
+
 class Strategy:
 
     def __init__(self, index, fee):
@@ -38,13 +53,7 @@ class Strategy:
         trades = self.signals['positions'][self.signals['positions'] == 1.0].count()
         maxdrawdown = self.signals['drawdown'].min()
 
-        print('Start :\t\t\t{}'.format(self.signals.index[0]), flush=True)
-        print('End :\t\t\t{}'.format(self.signals.index[len(self.signals.index) - 1]), flush=True)
-        print("Trades :\t\t{}".format(trades), flush=True)
-        print("Return % :\t\t{}".format(netret), flush=True)
-        print("Sharpe Ratio :\t\t{}".format(sharpe), flush=True)
-        print("Max Drawdown % :\t{}".format(maxdrawdown), flush=True)
-        print("Max Drawdown Duration :\t{}".format(maxdrawdownduration), flush=True)
+        return BacktestResult(self.signals.index[0], self.signals.index[len(self.signals.index) - 1], trades, netret, sharpe, maxdrawdown, maxdrawdownduration)
 
 class BuyAndHoldStrategy(Strategy):
 
@@ -61,19 +70,6 @@ class AvgCrossStrategy(Strategy):
         Strategy.__init__(self, close.index, fee)
         self.signals['signal'] = np.where(fast_avg > slow_avg, 1.0, 0.0)
         self.signals['positions'] = self.signals['signal'].diff()
-
-class CustomStrategy(Strategy):
-
-    def __init__(self, close, fast_sma, slow_sma, fee=0.0):
-        Strategy.__init__(self, close.index, fee=0.0)
-        #self.signals['signal'] = np.where((close > sma.series()) & (sma.series().pct_change() > 0.0), 1.0, 0.0)
-        #self.signals['positions'] = self.signals['signal'].diff()
-
-        self.signals['buy'] = np.where(fast_sma > slow_sma, 1.0, 0.0)
-        self.signals['sell'] = np.where(fast_sma < slow_sma, -1.0, 0.0)
-        self.signals['positions'] = self.signals['buy'] + self.signals['sell']
-        #self.signals['positions'] = self.signals['positions'].diff()
-        #print(self.signals['positions'])
 
 class RSIMACDStrategy(Strategy):
 

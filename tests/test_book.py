@@ -6,7 +6,7 @@ from mongomock import MongoClient
 import live
 from api.binance import Binance, OrderSide, OrderType, OrderStatus
 
-class TestStringMethods(unittest.TestCase):
+class TestBook(unittest.TestCase):
 
     def setUp(self):
         client = MongoClient()

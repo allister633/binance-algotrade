@@ -4,7 +4,7 @@ import numpy as np
 
 import indicators
 
-class TestStringMethods(unittest.TestCase):
+class TestIndicators(unittest.TestCase):
     """Tests indicators against TA-Lib output data."""
 
     def setUp(self):

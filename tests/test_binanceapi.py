@@ -3,7 +3,7 @@ import unittest
 from api.binance import Binance, OrderSide, OrderType
 import utils
 
-class TestStringMethods(unittest.TestCase):
+class TestBinanceAPI(unittest.TestCase):
 
     def setUp(self):
         apiKey = 'vmPUZE6mv9SD5VNHk4HlWFsOr6aKE2zvsw0MuIgwCIPy6utIco14y7Ju91duEh8A'
