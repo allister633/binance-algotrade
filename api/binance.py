@@ -105,7 +105,7 @@ class Binance():
 
         # lorsqu'on est en mode test, l'API ne répond pas d'objet à l'ordre, on insère une fausse réponse
         if self.test == True and status == 200:
-            data = {'symbol': symbol, 'side': side, 'status': 'FILLED', 'price': str(price), 'orderId': random.randint(1000, 9999), 'transactTime': self.timestamp()}
+            data = {'symbol': symbol, 'side': side.name, 'status': 'FILLED', 'price': str(price), 'orderId': random.randint(1000, 9999), 'transactTime': self.timestamp()}
 
         return status, data
 

@@ -192,26 +192,13 @@ class LiveTicker():
     def __init__(self, api, db, symbol, interval, quantity):
         self.symbol = symbol
         self.interval = interval
-        self.limit = 0.5
-        self.df = pd.DataFrame(columns=['close'])
-        self.db = db
         # Indique si on est au lancement, on attend de passer par un tendance baissière avant d'achater
         self.startup = True
         self.lasttimetick = None
 
         self.book = Book(api, db, symbol, quantity)
-        status, data = api.getklines(self.symbol.upper(), self.interval, 100)
+        status, data = api.getklines(self.symbol.upper(), self.interval, 500)
         self.df = utils.klinestodataframe(data)
-
-        # On fait un copie de la DataFrame pour y ajouter les colonnes temps et symbole pour l'insérer en base
-        dfcopy = self.df.copy()
-        dfcopy['time'] = dfcopy.index
-        dfcopy['symbol'] = symbol
-
-        # On supprime les élements en base qu'on a récupérés par l'API
-        fromdate = dfcopy.iloc[0]['time']
-        db.candles.delete_many({ 'symbol' : symbol, 'time' : { '$gte' : fromdate } })
-        db.candles.insert_many(dfcopy.to_dict('records'))
 
         self.rsi = indicators.RSI(self.df['open'], 9)
         self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
@@ -238,13 +225,6 @@ class LiveTicker():
 
         return False
 
-    def persist(self, time):
-        candle = self.df.loc[time].to_dict()
-        candle['time'] = time
-        candle['symbol'] = self.symbol
-
-        self.db.candles.replace_one({'time' : time, 'symbol' : self.symbol}, candle, upsert=True)
-
     def update_price(self, data):
         time = datetime.datetime.utcfromtimestamp(data['k']['t'] / 1000)
         open, high, low, close, volume  = float(data['k']['o']), float(data['k']['h']), float(data['k']['l']), float(data['k']['c']), float(data['k']['v'])
@@ -267,16 +247,12 @@ class LiveTicker():
             # la stratégie détermine les signaux d'achat / vente
             self.runstrategy()
             self.act(time, open)   
-    
-            self.persist(time)
         else:
             self.df.loc[time]['close'] = close
             self.df.loc[time]['open'] = open
             self.df.loc[time]['high'] = high
             self.df.loc[time]['low'] = low
             self.df.loc[time]['volume'] = volume
-
-            self.persist(time)
 
         self.lasttimetick = time
 
@@ -335,11 +311,7 @@ class Router():
 def subscribe(api, router, listenkey):
     try:
         api.subscribe(router.route, listenkey=listenkey)
-    except socket.gaierror as e:
-        logging.error(e)
-        time.sleep(30)
-        subscribe(api, router, listenkey)
-    except websockets.exceptions.ConnectionClosedError as e:
+    except (socket.gaierror, websockets.exceptions.ConnectionClosedError) as e:
         logging.error(e)
         time.sleep(30)
         subscribe(api, router, listenkey)
@@ -349,7 +321,6 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-test", action='store_false', dest='test')
-    parser.add_argument("--drop-db", action='store_true', dest='dropdb')
     parser.set_defaults(test=True, dropdb=False)
     args = parser.parse_args()
     
@@ -361,9 +332,6 @@ def main():
 
     client = MongoClient(config['db']['host'])
     db = client[config['db']['name']]
-
-    if args.dropdb == True:
-        db.candles.drop()
 
     conn, data = api.createlistenkey()
     if conn == 200:
