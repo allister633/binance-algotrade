@@ -1,143 +1,78 @@
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 import pandas as pd
 import numpy as np
 import argparse
 
 import backtest
 import indicators
-
-plt.style.use('ggplot')
-
-def add_ema(df, period):
-    df["ema" + str(period)] = df["close"].ewm(span=period).mean()
-
-def add_sma(df, period):
-    df["sma" + str(period)] = df["close"].rolling(window=period).mean()
-
-def runstrategy(close, rsi: indicators.RSI, macd: indicators.MACD):
-    """ Emet un signal d'achat lorsque le RSI croise par en dessous la valeur 33
-    ou lorsque la MACD croise la ligne de signal.
-
-    Un achat par RSI peut être confirmé avec la MACD dans quel cas on attendra son signal
-    pour vendre.
-    """
-
-    # indique le signal en cours sachant que MACD > RSI
-    buysignalstrat = None
-
-    macdcrossedfromdown = False
-    macdcrossedfromtop = False
-
-    lowthreshpassed = False
-    lowlowthreshpassed = False
-    hithreshpassed = False
-    hihithreshpassed = False
-    hasbought = False
-    close['positions'] = 0.0
-    close['rsi'] = rsi.data()
-    close['macd'], close['macd_signal'] = macd.data()
-    for index, row in close.iterrows():
-        # achat en fonction du RSI
-        if row['rsi'] < 33:
-            lowthreshpassed = True
-        if row['rsi'] < 20:
-            lowlowthreshpassed = True
-        if row['rsi'] > 66:
-            hithreshpassed = True
-        if row['rsi'] > 80:
-            hihithreshpassed = True
-
-        if row['rsi'] > 20 and lowlowthreshpassed == True:
-            lowlowthreshpassed = False
-            if hasbought == False:
-                print('{} BUY at {} by RSI'.format(index, row['close']))
-                hasbought = True
-                close['positions'].loc[index] = 1.0
-                buysignalstrat = "RSI"
-        if row['rsi'] > 33 and lowthreshpassed == True:
-            lowthreshpassed = False
-            if hasbought == False:
-                print('{} BUY at {} by RSI'.format(index, row['close']))
-                hasbought = True
-                close['positions'].loc[index] = 1.0
-                buysignalstrat = "RSI"
-        # on revend par RSI seulement si c'est le seul signal qui a généré l'achat
-        if row['rsi'] < 80 and hihithreshpassed == True:
-            hihithreshpassed = False
-            if hasbought == True and buysignalstrat == "RSI":
-                print('{} SELL at {} by RSI'.format(index, row['close']))
-                hasbought = False
-                close['positions'].loc[index] = -1.0
-                buysignalstrat = None
-        if row['rsi'] < 66 and hithreshpassed == True:
-            hithreshpassed = False
-            if hasbought == True and buysignalstrat == "RSI":
-                print('{} SELL at {} by RSI'.format(index, row['close']))
-                hasbought = False
-                close['positions'].loc[index] = -1.0
-                buysignalstrat = None
-
-        # achat en fonction de la MACD
-        # TODO : lorsque le marché stagne, la MACD génère beaucoup de faux signaux, comment les éviter ?
-        if row['macd'] > row['macd_signal'] and macdcrossedfromdown == False:
-            print('MACD CROSSED FROM BOTTOM AT ' + str(index))
-            macdcrossedfromdown = True
-            macdcrossedfromtop = False
-            if hasbought == False:
-                print('{} BUY at {} by MACD'.format(index, row['close']))
-                hasbought = True
-                close['positions'].loc[index] = 1.0
-            # même si nous avions acheté avec le RSI, si le signal est confirmé par la MACD
-            # il sera considéré comme étant prévalant
-            buysignalstrat = "MACD"
-        if  row['macd'] < row['macd_signal'] and macdcrossedfromtop == False:
-            print('MACD CROSSED FROM TOP AT ' + str(index))
-            macdcrossedfromtop = True
-            macdcrossedfromdown = False
-            if hasbought == True:
-                print('{} SELL at {} by MACD'.format(index, row['close']))
-                hasbought = False
-                close['positions'].loc[index] = -1.0
-                buysignalstrat = None
+import strategies
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file")
+    parser.add_argument("--sma", type=int, nargs='+', help='Adds SMA to the price graph')
+    parser.add_argument("--ema", type=int, nargs='+', help='Adds EMA to the price graph')
+    parser.add_argument("--rsi", type=int, help='Adds RSI in a subplot')
+    parser.add_argument("--macd", type=int, nargs=3, help='Adds MACD in a subplot')
+    parser.add_argument("--strategy", type=int, nargs='+', help='Adds a strategy, 1 : EMA Cross')
     args = parser.parse_args()
-    
-    df = pd.read_csv(args.file, index_col='time', parse_dates=True)
 
-    #close = df.loc['20191220':,['close']].astype('float64')
-    #close = df.loc['20191220':,['close']].astype('float64')
-    close = df
+    ohlc = pd.read_csv(args.file, index_col='time', parse_dates=True)
+    close = ohlc['close']
 
-    #add_ema(close, 12)
-    #add_ema(close, 26)
-    add_sma(close, 50)
-    add_sma(close, 100)
+    # calculates the number of sublots
+    rows = 1
+    if args.rsi != None:
+        rows += 1
+    if args.macd != None:
+        rows += 1
 
-    rsi = indicators.RSI(close['close'], 9)
-    macd = indicators.MACD(close['close'], 12, 26, 9)
+    fig = make_subplots(rows=rows, cols=1, shared_xaxes=True)
 
-    runstrategy(close, rsi, macd)
+    # plots close bar graph with averages
+    row = 1
+    fig.add_trace(go.Scatter(x=ohlc.index, y=close, name="Close"), row=row, col=1)
+    if args.ema != None:
+        for period in args.ema:
+            ema = indicators.EMA(close, period)
+            fig.add_trace(go.Scatter(x=ohlc.index, y=ema.df['ema{}'.format(period)], name="EMA {}".format(period)), row=row, col=1)
+    if args.sma != None:
+        for period in args.sma:
+            sma = indicators.SMA(close, period)
+            fig.add_trace(go.Scatter(x=ohlc.index, y=sma.df['sma{}'.format(period)], name="SMA {}".format(period)), row=row, col=1)
+    row += 1
 
-    fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
-    fig.suptitle(args.file)
-    ax1.plot(close['close'])
-    ax1.plot(close['close'].loc[close['positions'] == 1.0].index, close['close'].loc[close['positions'] == 1.0], '^', markersize = 10, color = 'g')
-    ax1.plot(close['close'].loc[close['positions'] == -1.0].index, close['close'].loc[close['positions'] == -1.0], 'v', markersize = 10, color = 'r')
-    ax1.plot(close['sma50'], label='SMA50')
-    ax1.plot(close['sma100'], label='SMA100')
-    ax1.legend()
-    ax2.plot(rsi.data(), label='RSI 9')
-    ax2.legend()
-    macd, macd_signal = macd.data()
-    ax3.plot(macd, label='MACD 12 26 9')
-    ax3.plot(macd_signal)
-    ax3.legend()
+    # plots RSI
+    if args.rsi != None:
+        rsi = indicators.RSI(close, args.rsi)
+        fig.add_trace(go.Scatter(x=ohlc.index, y=rsi.df.rsi, name="RSI {}".format(args.rsi)), row=row, col=1)
+        row += 1
 
-    plt.show()
+    # plots MACD
+    if args.macd != None:
+        macd = indicators.MACD(close, args.macd[0], args.macd[1], args.macd[2])
+        fig.add_trace(go.Scatter(x=ohlc.index, y=macd.df.MACD, name="MACD {} {} {}".format(args.macd[0], args.macd[1], args.macd[2])), row=row, col=1)
+        fig.add_trace(go.Scatter(x=ohlc.index, y=macd.df.signal, name="MACD Signal"), row=row, col=1)
+        row += 1
+
+    # plots strategy
+    if args.strategy != None:
+        if args.strategy[0] == 1:
+
+            fast_ema = indicators.EMA(ohlc.close, period=args.strategy[1])
+            slow_ema = indicators.EMA(ohlc.close, period=args.strategy[2])
+
+            strategy = strategies.AvgCrossStrategy(ohlc.close, fast_ema.data(), slow_ema.data())
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == 1.0].index, y=close.loc[strategy.signals['positions'] == 1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-up', color='green'),  name="Buy"), row=1, col=1)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == -1.0].index, y=close.loc[strategy.signals['positions'] == -1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-down', color='red'),  name="Sell"), row=1, col=1)
+
+    fig.show()
 
 if __name__ == "__main__":
     main()
