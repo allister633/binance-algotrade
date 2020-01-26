@@ -71,7 +71,7 @@ class Book():
 
                 order['transactTime'] = datetime.datetime.utcfromtimestamp(order['transactTime'] / 1000)
 
-                if order['status'] == OrderStatus.FILLED.name:
+                if order['status'] == OrderStatus.FILLED.name or order['status'] == OrderStatus.PARTIALLY_FILLED.name:
                     self.holding = True
 
                 self.orders[order['orderId']] = order
@@ -107,12 +107,12 @@ class Book():
                         logging.error("Could not cancel order {} : {}".format(self.lastsellorderid, data))
                         return
 
-            if self.orders[self.lastbuyorderid]['status'] == OrderStatus.FILLED.name:
+            if self.orders[self.lastbuyorderid]['status'] == OrderStatus.FILLED.name or self.orders[self.lastbuyorderid]['status'] == OrderStatus.PARTIALLY_FILLED.name:
                 # Attention : s'assurer que le compte contient une quantité de BNB pour couvrir les commissions
 
                 # on récupère la quantité achetée
-                if "quantity" in self.orders[self.lastbuyorderid]:
-                    quantity = self.orders[self.lastbuyorderid]["quantity"]
+                if "filledQuantity" in self.orders[self.lastbuyorderid]:
+                    quantity = self.orders[self.lastbuyorderid]["filledQuantity"]
                 else:
                     quantity = self.quantity
 
@@ -122,11 +122,11 @@ class Book():
 
                     order['transactTime'] = datetime.datetime.utcfromtimestamp(order['transactTime'] / 1000)
 
-                    self.orders[order['orderId']] = order
-                    self.lastsellorderid = order['orderId']
-
                     if order['status'] == OrderStatus.FILLED.name or order['status'] == OrderStatus.PARTIALLY_FILLED.name:
                         self.holding = False
+
+                    self.orders[order['orderId']] = order
+                    self.lastsellorderid = order['orderId']
                     
                     self.db.orders.insert_one(order)
 
@@ -157,7 +157,10 @@ class Book():
         order['price'] = data['p']
         order['orderId'] = data['i']
         order['transactTime'] = data['T']
-        order['quantity'] = float(data['q'])
+        order['orderQuantity'] = float(data['q'])
+        order['filledQuantity'] = float(data['z'])
+
+        self.filledquantity = order['filledQuantity']
 
         order['transactTime'] = datetime.datetime.utcfromtimestamp(order['transactTime'] / 1000)
 
@@ -184,7 +187,7 @@ class Book():
         if self.lastbuyorderid != None and self.lastbuyorderid == order['orderId']:
 
             # s'il est FILLED, ça veut dire qu'on detient de la devise, on ne pourra donc pas en racheter
-            if self.orders[self.lastbuyorderid]['status'] == OrderStatus.FILLED.name:
+            if self.orders[self.lastbuyorderid]['status'] == OrderStatus.FILLED.name or self.orders[self.lastbuyorderid]['status'] == OrderStatus.PARTIALLY_FILLED.name:
                 self.holding = True
 
 class LiveTicker():
