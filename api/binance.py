@@ -1,6 +1,6 @@
 import asyncio
 import websockets
-import datetime
+from datetime import timedelta
 import time
 import random
 from enum import Enum
@@ -8,6 +8,24 @@ from enum import Enum
 import http.client, urllib.parse
 import hmac, hashlib
 import json
+
+Intervals = {
+    "1m" : timedelta(minutes=1),
+    "3m" : timedelta(minutes=3),
+    "5m" : timedelta(minutes=5),
+    "15m" : timedelta(minutes=15),
+    "30m" : timedelta(minutes=30),
+    "1h" : timedelta(hours=1),
+    "2h" : timedelta(hours=2),
+    "4h" : timedelta(hours=4),
+    "6h" : timedelta(hours=6),
+    "8h" : timedelta(hours=8),
+    "12h" : timedelta(hours=12),
+    "1d" : timedelta(days=1),
+    "3d" : timedelta(days=3),
+    "1w" : timedelta(days=7),
+    "1M" : timedelta(days=30),
+}
 
 class OrderStatus(Enum):
     NEW = 1
@@ -55,8 +73,12 @@ class Binance():
     def exchangeinfo(self):
         return self._request('GET', '/api/v3/exchangeInfo')
 
-    def getklines(self, symbol, interval, limit):
+    def getklines(self, symbol, interval, limit, start = None, end = None):
         url = "/api/v3/klines?symbol={}&interval={}&limit={}".format(symbol, interval, limit)
+        if start != None:
+            url += "&startTime={}".format(start)
+        if end != None:
+            url += "&endTime={}".format(end)
         return self._request('GET', url)
 
     def getorder(self, symbol, orderid):

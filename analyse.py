@@ -72,6 +72,18 @@ def main():
             fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == -1.0].index, y=close.loc[strategy.signals['positions'] == -1.0],
             mode='markers', marker=dict(size=12, symbol='triangle-down', color='red'),  name="Sell"), row=1, col=1)
 
+        elif args.strategy[0] == 2:
+
+            macd = indicators.MACD(ohlc.close, args.strategy[1], args.strategy[2], args.strategy[3])
+
+            strategy = strategies.MACDStrategy(ohlc.close, macd)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == 1.0].index, y=close.loc[strategy.signals['positions'] == 1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-up', color='green'),  name="Buy"), row=1, col=1)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == -1.0].index, y=close.loc[strategy.signals['positions'] == -1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-down', color='red'),  name="Sell"), row=1, col=1)
+
     fig.show()
 
 if __name__ == "__main__":
