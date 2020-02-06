@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--ema", type=int, nargs='+', help='Adds EMA to the price graph')
     parser.add_argument("--rsi", type=int, help='Adds RSI in a subplot')
     parser.add_argument("--macd", type=int, nargs=3, help='Adds MACD in a subplot')
+    parser.add_argument("--bbands", type=int, nargs=2, help='Adds Bollinger Bands to the price graph')
     parser.add_argument("--strategy", type=int, nargs='+', help='Adds a strategy, 1 : EMA Cross')
     args = parser.parse_args()
 
@@ -42,6 +43,15 @@ def main():
         for period in args.sma:
             sma = indicators.SMA(close, period)
             fig.add_trace(go.Scatter(x=ohlc.index, y=sma.df['sma{}'.format(period)], name="SMA {}".format(period)), row=row, col=1)
+
+    # plots Bollinger Bands
+    if args.bbands != None:
+        bbands = indicators.BollingerBands(close, args.bbands[0])
+        fig.add_trace(go.Scatter(x=ohlc.index, y=bbands.df.ma), row=row, col=1)
+        fig.add_trace(go.Scatter(x=ohlc.index, y=bbands.df.upper), row=row, col=1)
+        fig.add_trace(go.Scatter(x=ohlc.index, y=bbands.df.lower), row=row, col=1)
+        row += 1
+
     row += 1
 
     # plots RSI
@@ -77,6 +87,30 @@ def main():
             macd = indicators.MACD(ohlc.close, args.strategy[1], args.strategy[2], args.strategy[3])
 
             strategy = strategies.MACDStrategy(ohlc.close, macd)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == 1.0].index, y=close.loc[strategy.signals['positions'] == 1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-up', color='green'),  name="Buy"), row=1, col=1)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == -1.0].index, y=close.loc[strategy.signals['positions'] == -1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-down', color='red'),  name="Sell"), row=1, col=1)
+
+        elif args.strategy[0] == 3:
+
+            bb1 = indicators.BollingerBands(ohlc.close, 20, 1)
+            bb2 = indicators.BollingerBands(ohlc.close, 20, 2)
+            strategy = strategies.DBBStrategy(ohlc.close, bb1, bb2)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == 1.0].index, y=close.loc[strategy.signals['positions'] == 1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-up', color='green'),  name="Buy"), row=1, col=1)
+
+            fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == -1.0].index, y=close.loc[strategy.signals['positions'] == -1.0],
+            mode='markers', marker=dict(size=12, symbol='triangle-down', color='red'),  name="Sell"), row=1, col=1)
+
+        elif args.strategy[0] == 4:
+
+            rsi = indicators.RSI(ohlc.close, 9)
+            macd = indicators.MACD(ohlc.close, 12, 26, 9)
+            strategy = strategies.RSIMACDStrategy(ohlc.close, rsi, macd)
 
             fig.add_trace(go.Scatter(x=close.loc[strategy.signals['positions'] == 1.0].index, y=close.loc[strategy.signals['positions'] == 1.0],
             mode='markers', marker=dict(size=12, symbol='triangle-up', color='green'),  name="Buy"), row=1, col=1)

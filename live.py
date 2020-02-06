@@ -203,16 +203,21 @@ class LiveTicker():
         status, data = api.getklines(self.symbol.upper(), self.interval, 500)
         self.df = utils.klinestodataframe(data)
 
-        self.rsi = indicators.RSI(self.df['open'], 9)
-        self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
+        #self.rsi = indicators.RSI(self.df['open'], 9)
+        #self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
+        self.bb1 = indicators.BollingerBands(self.df['close'], 20, 1)
+        self.bb2 = indicators.BollingerBands(self.df['close'], 20, 2)
 
     def updateindicators(self):
-        self.rsi = indicators.RSI(self.df['open'], 9)
-        self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
-        logging.info("{} - RSI {} MACD {} MACD SIGNAL {}".format(self.symbol, self.rsi.df.iloc[-1]['rsi'], self.macd.df.iloc[-1]['MACD'], self.macd.df.iloc[-1]['signal']))
+        #self.rsi = indicators.RSI(self.df['open'], 9)
+        #self.macd = indicators.MACD(self.df['open'], 12, 26, 9)
+        #logging.info("{} - RSI {} MACD {} MACD SIGNAL {}".format(self.symbol, self.rsi.df.iloc[-1]['rsi'], self.macd.df.iloc[-1]['MACD'], self.macd.df.iloc[-1]['signal']))
+        self.bb1 = indicators.BollingerBands(self.df['open'], 20, 1)
+        self.bb2 = indicators.BollingerBands(self.df['open'], 20, 2)
 
     def runstrategy(self):
-        self.strategy = strategies.RSIMACDStrategy(self.df, self.rsi, self.macd)
+        #self.strategy = strategies.RSIMACDStrategy(self.df, self.rsi, self.macd)
+        self.strategy = strategies.DBBStrategy(self.df['open'], self.bb1, self.bb2)
 
     def act(self, time, price):
         if self.strategy.signals['signal'].loc[time] == 1.0 and self.startup == False:

@@ -148,14 +148,6 @@ class RSIStrategy(Strategy):
 
     def __init__(self, close, rsi: indicators.RSI, fee=0.0):
         Strategy.__init__(self, close.index, fee=0.0)
-        #self.signals['signal'] = np.where((rsi.data["rsi"] > 20.0) & (rsi.data["rsi"] < 80.0), 1.0, 0.0)
-        #self.signals['positions'] = self.signals['signal'].diff()
-        #self.signals['positions'] = 0.0
-        #self.signals['positions'][rsi.data["rsi"] < 20.0] = -1.0
-        #self.signals['positions'][rsi.data["rsi"] > 80.0] = 1.0
-        #self.signals['signal'] = self.signals['positions'].diff()
-
-        #print(self.signals)
 
         lowthreshpassed = False
         lowlowthreshpassed = False
@@ -203,4 +195,22 @@ class MACDStrategy(Strategy):
         Strategy.__init__(self, close.index, fee=0.0)
         line, signal = macd.data()
         self.signals['signal'] = np.where(line > signal, 1.0, 0.0)
+        self.signals['positions'] = self.signals['signal'].diff()
+
+class DBBStrategy(Strategy):
+
+    def __init__(self, close, bb1: indicators.BollingerBands, bb2: indicators.BollingerBands, fee=0.0):
+        Strategy.__init__(self, close.index, fee=0.0)
+        
+        hasbought = False
+        for index, row in bb1.df.iterrows():
+            if row['close'] > row['upper'] and row['close'] < bb2.df.loc[index]['upper']:
+                hasbought = True
+
+            if row['close'] < row['lower'] and row['close'] > bb2.df.loc[index]['lower']:
+                hasbought = False
+
+            if hasbought == True:
+                self.signals['signal'].loc[index] = 1.0
+
         self.signals['positions'] = self.signals['signal'].diff()

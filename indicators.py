@@ -100,12 +100,12 @@ class RSI(Indicator):
 
 class BollingerBands(Indicator):
 
-    def __init__(self, data: pd.Series, period: int = 20):
+    def __init__(self, data: pd.Series, period: int = 20, std: int = 2):
         Indicator.__init__(self, data.index)
         self.df['close'] = data
         self.df['ma'] =  self.df['close'].rolling(window=period).mean()
-        self.df['upper'] = self.df['ma'] + (self.df['close'].rolling(window=period).std(ddof=0) * 2.0)
-        self.df['lower'] = self.df['ma'] - (self.df['close'].rolling(window=period).std(ddof=0) * 2.0)
+        self.df['upper'] = self.df['ma'] + (self.df['close'].rolling(window=period).std(ddof=0) * std)
+        self.df['lower'] = self.df['ma'] - (self.df['close'].rolling(window=period).std(ddof=0) * std)
 
     def data(self):
         return self.df['ma'], self.df['upper'], self.df['lower']

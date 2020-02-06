@@ -23,7 +23,8 @@ def main():
     
     print("Buy And Hold Strategy :")
     strat1 = strategies.BuyAndHoldStrategy(close, 0.001)
-    strat1.backtest(close['close'])
+    res = strat1.backtest(close['close'])
+    print(res)
     print(flush=True)
 
     add_ema(close, 12)
@@ -31,20 +32,31 @@ def main():
 
     macd = indicators.MACD(close['close'], 12, 26, 9)
     rsi = indicators.RSI(close['close'], 9)
+    bb1 = indicators.BollingerBands(close['close'], 20, 1)
+    bb2 = indicators.BollingerBands(close['close'], 20, 2)
 
     print("MACD Strategy :")
     strat3 = strategies.MACDStrategy(close, macd, 0.001)
-    strat3.backtest(close['close'])
+    res = strat3.backtest(close['close'])
+    print(res)
     print(flush=True)
 
     print("RSI Strategy :")
     strat4 = strategies.RSIStrategy(close, rsi, 0.001)
-    strat4.backtest(close['close'])
+    res = strat4.backtest(close['close'])
+    print(res)
     print(flush=True)
     
+    print("Double Bollinger Bands Strategy :")
+    strat5 = strategies.DBBStrategy(close['close'], bb1, bb2)
+    res = strat5.backtest(close['close'])
+    print(res)
+    print(flush=True)
+
     print("Custom RSI + MACD Strategy :")
     strat2 = strategies.RSIMACDStrategy(close, rsi, macd, 0.001)
-    strat2.backtest(close['close'])
+    res = strat2.backtest(close['close'])
+    print(res)
 
     fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, sharex=True)
     fig.suptitle(args.file)
