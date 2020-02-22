@@ -175,5 +175,8 @@ class Binance():
     def subscribe(self, handler, symbol = None, interval = None, listenkey = None):
         asyncio.get_event_loop().run_until_complete(self.ws(handler, symbol, interval, listenkey))
 
+    def unsubscribe(self):
+        asyncio.get_event_loop().stop()
+
     def timestamp(self):
         return int(time.time() * 1000)

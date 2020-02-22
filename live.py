@@ -315,14 +315,19 @@ class Router():
                 self.lastlistenkeyupdate = eventtime
             else:
                 logging.info("Could not update listen key : {}".format(data))
+                self.api.unsubscribe()
+                conn, data = self.api.createlistenkey()
+                if conn == 200:
+                    self.listenkey = data['listenKey']
+                    self.subscribe()
 
-def subscribe(api, router, listenkey):
-    try:
-        api.subscribe(router.route, listenkey=listenkey)
-    except (socket.gaierror, websockets.exceptions.ConnectionClosedError) as e:
-        logging.error(e)
-        time.sleep(30)
-        subscribe(api, router, listenkey)
+    def subscribe(self):
+        try:
+            self.api.subscribe(self.route, listenkey=self.listenkey)
+        except (socket.gaierror, websockets.exceptions.ConnectionClosedError) as e:
+            logging.error(e)
+            time.sleep(30)
+            self.subscribe()
 
 def main():
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename='live.log')
@@ -345,7 +350,7 @@ def main():
     if conn == 200:
         listenkey = data['listenKey']
         router = Router(config, api, db, listenkey)
-        subscribe(api, router, listenkey)
+        router.subscribe()
 
 if __name__ == "__main__":
     main()
