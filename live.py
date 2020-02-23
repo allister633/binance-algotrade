@@ -136,12 +136,12 @@ class Book():
 
         return False
 
-    def calcpnl(self):
+    def calcpnl(self, fees=0.15):
         if self.lastsellorderid != None and self.lastbuyorderid != None:
             lastsellprice = float(self.orders[self.lastsellorderid]['price'])
             lastbuyprice = float(self.orders[self.lastbuyorderid]['price'])
 
-            pnl = ((lastsellprice - lastbuyprice) / lastbuyprice) * 100.0
+            pnl = (((lastsellprice - lastbuyprice) / lastbuyprice) * 100.0) - fees
             self.quantity = self.quantity + (self.quantity * pnl / 100.0)
             self.quantity = round(self.quantity, 5)
 
